@@ -50,7 +50,7 @@ fun HomeScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("羽毛球计分器", color = Palette.text, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            Text("赛点", color = Palette.text, fontSize = 26.sp, fontWeight = FontWeight.Bold)
             CircleIconButton(onClick = onOpenSettings) {
                 Text("⚙", fontSize = 20.sp, color = Palette.blueBright)
             }
