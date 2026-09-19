@@ -598,6 +598,14 @@ class MatchHistoryTest {
     private fun store(history: MatchHistoryStore, state: MatchState = MatchState(mode = ScoringMode.BWF21)) =
         MatchStore(state).also { it.history = history }
 
+    /** 交替加分直到指定比分。 */
+    private fun playGame(s: MatchStore, red: Int, blue: Int) {
+        repeat(maxOf(red, blue)) {
+            if (s.state.value.redPoints < red) s.addPoint(Side.RED)
+            if (s.state.value.bluePoints < blue) s.addPoint(Side.BLUE)
+        }
+    }
+
     @Test
     fun `打完一整场自动记一条`() {
         val history = freshHistory()
@@ -689,6 +697,26 @@ class MatchHistoryTest {
         assertEquals(ScoringMode.CUSTOM, r.mode)
         assertEquals(MatchFormat.DOUBLES, r.format)
         assertEquals("A1 / A2", r.redName)
+        history.clear()
+    }
+
+    @Test
+    fun `记录里各方显示自己赢的局数，不是同一个大比分`() {
+        val history = freshHistory()
+        val s = store(history)
+
+        // 2-1：红方赢两局、蓝方赢一局
+        playGame(s, 21, 19); s.startNextGame()
+        playGame(s, 15, 21); s.startNextGame()
+        playGame(s, 21, 18)
+
+        assertEquals(1, history.total)
+        val r = history.items[0]
+        assertEquals("2-1", r.gamesLine)
+        assertEquals(2, r.gamesOf(Side.RED))
+        assertEquals(1, r.gamesOf(Side.BLUE))
+        assertEquals(2, r.redGames)
+        assertEquals(1, r.blueGames)
         history.clear()
     }
 

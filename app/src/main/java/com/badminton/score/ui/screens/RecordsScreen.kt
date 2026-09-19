@@ -195,9 +195,10 @@ private fun RecordCard(record: MatchRecord, fmt: SimpleDateFormat, modifier: Mod
         Spacer(Modifier.height(8.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            SideText(record.redName, record.gamesLine, record.winner == Side.RED, Palette.redBright, Modifier.weight(1f))
+            // 各方显示自己赢的局数（之前两边都传 gamesLine，都显示「2-1」）
+            SideText(record.redName, "${record.gamesOf(Side.RED)}", record.winner == Side.RED, Palette.redBright, Modifier.weight(1f))
             Text("vs", color = Palette.textFaint, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp))
-            SideText(record.blueName, record.gamesLine, record.winner == Side.BLUE, Palette.blueBright, Modifier.weight(1f))
+            SideText(record.blueName, "${record.gamesOf(Side.BLUE)}", record.winner == Side.BLUE, Palette.blueBright, Modifier.weight(1f))
         }
 
         if (record.scoreLine.isNotEmpty()) {

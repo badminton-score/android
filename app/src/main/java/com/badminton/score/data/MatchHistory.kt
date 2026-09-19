@@ -21,9 +21,17 @@ data class MatchRecord(
     /** 整场用了多久（秒）。 */
     val durationSeconds: Double,
 ) {
+    /** 红方赢了几局。 */
+    val redGames: Int get() = games.count { it.winner == Side.RED }
+
+    /** 蓝方赢了几局。 */
+    val blueGames: Int get() = games.count { it.winner == Side.BLUE }
+
+    /** 某方赢的局数。记录列表里各方显示各自的，不是同一个大比分。 */
+    fun gamesOf(side: Side): Int = if (side == Side.RED) redGames else blueGames
+
     /** 大比分，例如 "2-1"。 */
-    val gamesLine: String
-        get() = "${games.count { it.winner == Side.RED }}-${games.count { it.winner == Side.BLUE }}"
+    val gamesLine: String get() = "$redGames-$blueGames"
 
     /** 各局小分，例如 "21-19 / 18-21 / 21-15"。 */
     val scoreLine: String get() = games.joinToString(" / ") { "${it.red}-${it.blue}" }

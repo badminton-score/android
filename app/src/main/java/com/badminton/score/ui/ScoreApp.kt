@@ -47,6 +47,7 @@ fun ScoreApp() {
             store = store,
             prefs = prefs,
             onStart = { inMatch = true },
+            onResume = { inMatch = true },
             onOpenSettings = { screen = Screen.Settings },
             onOpenRecords = { showRecords = true },
         )

@@ -26,6 +26,7 @@ fun HomeScreen(
     store: MatchStore,
     prefs: PrefsSettings,
     onStart: () -> Unit,
+    onResume: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenRecords: () -> Unit,
 ) {
@@ -33,6 +34,7 @@ fun HomeScreen(
     var mode by remember { mutableStateOf(prefs.selectedMode) }
     val history = MatchHistoryStore.shared
     val historyItems by history.records.collectAsState()
+    val hasProgress = state.hasUnfinished
 
     Column(
         Modifier
@@ -128,8 +130,26 @@ fun HomeScreen(
             }
         }
 
+        if (hasProgress) {
+            // 上一场没打完：给一个「继续」入口，和「开始比赛」区分开
+            GlassCard(onClick = onResume, modifier = Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("⏱", fontSize = 18.sp)
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("继续上一场比赛", color = Palette.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text("${state.redPoints} : ${state.bluePoints}　第 ${state.currentGame} 局", color = Palette.textDim, fontSize = 12.sp)
+                    }
+                    Text("  ›", color = Palette.textFaint, fontSize = 16.sp)
+                }
+            }
+        }
+
         PrimaryButton("▶  开始比赛") {
-            store.changeMode(mode)   // 保证 store 里的赛制和界面选的一致
+            // 「开始比赛」永远从头开始，不然同一个赛制没法连着用两次
+            // （之前不重置，而 changeMode(同模式) 是空操作，比分就留着了）
+            store.changeMode(mode)
+            store.rematch()
             onStart()
         }
 
@@ -155,6 +175,10 @@ fun HomeScreen(
         )
     }
 }
+
+/** 上一场是否还有没打完的比分。 */
+private val MatchState.hasUnfinished: Boolean
+    get() = (redPoints > 0 || bluePoints > 0 || gameScores.isNotEmpty()) && !isMatchOver
 
 @Composable
 private fun Hero() {
