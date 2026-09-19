@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 和 App 里那套红蓝一致 -->
+    <color name="red_base">#FF3D4D</color>
+    <color name="blue_base">#3385FF</color>
+    <!-- 图标底色 + 窗口底色，避免启动闪白 -->
+    <color name="ic_launcher_background">#07080C</color>
+    <color name="window_background">#07080C</color>
+</resources>

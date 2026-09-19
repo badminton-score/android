@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      针对国产 ROM（EMUI / 鸿蒙 / MIUI）的适配：
+      - windowBackground 显式指定，不留系统默认的白色
+      - forceDarkAllowed=false，别让「强制深色」把界面反色
+      - 不用带明暗倾向的父主题，明暗完全由 App 自己控制
+    -->
+    <style name="Theme.BadmintonScore" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:colorBackground">@color/window_background</item>
+        <item name="android:forceDarkAllowed">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+    </style>
+</resources>
