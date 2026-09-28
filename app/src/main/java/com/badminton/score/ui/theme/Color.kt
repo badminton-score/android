@@ -1,6 +1,7 @@
 package com.badminton.score.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import com.badminton.score.data.CardType
 
 /** 和 iOS 版 Theme.swift 里那套红蓝一致。 */
 object Palette {
@@ -32,9 +33,12 @@ object Palette {
 
     /** 删除 / 重新开始这类破坏性操作的红。 */
     val destructive = Color(0xFFFF453A)
+    val redCard = Color(0xFFFF3338)
+    val yellowCard = Color(0xFFFFD12B)
 
     fun accent(isRed: Boolean) = if (isRed) red else blue
     fun bright(isRed: Boolean) = if (isRed) redBright else blueBright
     fun panel(isRed: Boolean) = if (isRed) redPanel else bluePanel
     fun panelDeep(isRed: Boolean) = if (isRed) redPanelDeep else bluePanelDeep
+    fun card(type: CardType) = if (type == CardType.YELLOW) yellowCard else redCard
 }

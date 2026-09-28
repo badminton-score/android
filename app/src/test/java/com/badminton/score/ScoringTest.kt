@@ -519,6 +519,52 @@ class MatchSessionTest {
     }
 
     @Test
+    fun `红黄牌只计数 不改变比分和发球权`() {
+        val store = MatchStore(MatchState(mode = ScoringMode.BWF21))
+        store.addPoint(Side.RED)
+
+        store.addCard(CardType.RED, Side.RED)
+        store.addCard(CardType.YELLOW, Side.BLUE)
+
+        assertEquals(1, store.state.value.redPoints)
+        assertEquals(0, store.state.value.bluePoints)
+        assertEquals(Side.RED, store.state.value.server)
+        assertEquals(1, store.state.value.cardCount(CardType.RED, Side.RED))
+        assertEquals(1, store.state.value.cardCount(CardType.YELLOW, Side.BLUE))
+    }
+
+    @Test
+    fun `撤销牌时只撤销最近一张同色牌`() {
+        val store = MatchStore(MatchState(mode = ScoringMode.BWF21))
+        store.addCard(CardType.RED, Side.RED)
+        store.addCard(CardType.RED, Side.BLUE)
+        store.addCard(CardType.YELLOW, Side.RED)
+
+        store.undoCard(CardType.RED)
+
+        assertEquals(1, store.state.value.cardCount(CardType.RED, Side.RED))
+        assertEquals(0, store.state.value.cardCount(CardType.RED, Side.BLUE))
+        assertEquals(1, store.state.value.cardCount(CardType.YELLOW, Side.RED))
+        assertTrue(store.canUndoCard(CardType.RED))
+        assertTrue(store.canUndoCard(CardType.YELLOW))
+    }
+
+    @Test
+    fun `撤销分数不影响已经记下的牌`() {
+        val store = MatchStore(MatchState(mode = ScoringMode.BWF21))
+        store.addPoint(Side.RED)
+        store.addCard(CardType.YELLOW, Side.RED)
+
+        store.undo()
+        assertEquals(0, store.state.value.redPoints)
+        assertEquals(1, store.state.value.cardCount(CardType.YELLOW, Side.RED))
+
+        store.redo()
+        assertEquals(1, store.state.value.redPoints)
+        assertEquals(1, store.state.value.cardCount(CardType.YELLOW, Side.RED))
+    }
+
+    @Test
     fun `本局结束后加减分按钮锁定`() {
         val store = MatchStore(MatchState(mode = ScoringMode.BWF21))
         repeat(21) { store.addPoint(Side.RED) }
@@ -733,6 +779,28 @@ class MatchHistoryTest {
         assertEquals(3, history.total)
         assertEquals(2, history.redWins)
         assertEquals(1, history.blueWins)
+        history.clear()
+    }
+
+    @Test
+    fun `历史记录保存双方红黄牌次数`() {
+        val history = freshHistory()
+        val s = store(history)
+
+        s.addCard(CardType.RED, Side.RED)
+        s.addCard(CardType.YELLOW, Side.RED)
+        s.addCard(CardType.RED, Side.BLUE)
+
+        repeat(21) { s.addPoint(Side.RED) }
+        s.startNextGame()
+        repeat(21) { s.addPoint(Side.RED) }
+
+        assertEquals(1, history.total)
+        val r = history.items[0]
+        assertEquals(1, r.cardCount(CardType.RED, Side.RED))
+        assertEquals(1, r.cardCount(CardType.YELLOW, Side.RED))
+        assertEquals(1, r.cardCount(CardType.RED, Side.BLUE))
+        assertEquals(0, r.cardCount(CardType.YELLOW, Side.BLUE))
         history.clear()
     }
 }

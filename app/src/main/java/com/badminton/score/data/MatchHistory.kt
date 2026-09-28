@@ -20,6 +20,8 @@ data class MatchRecord(
     val winner: Side?,
     /** 整场用了多久（秒）。 */
     val durationSeconds: Double,
+    /** 本场双方的出牌记录。旧记录没有该字段时默认为空。 */
+    val cardEvents: List<CardEvent> = emptyList(),
 ) {
     /** 红方赢了几局。 */
     val redGames: Int get() = games.count { it.winner == Side.RED }
@@ -29,6 +31,10 @@ data class MatchRecord(
 
     /** 某方赢的局数。记录列表里各方显示各自的，不是同一个大比分。 */
     fun gamesOf(side: Side): Int = if (side == Side.RED) redGames else blueGames
+
+    /** 某方、某种颜色的牌有几张。 */
+    fun cardCount(type: CardType, side: Side): Int =
+        cardEvents.count { it.type == type && it.side == side }
 
     /** 大比分，例如 "2-1"。 */
     val gamesLine: String get() = "$redGames-$blueGames"

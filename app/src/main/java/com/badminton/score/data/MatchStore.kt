@@ -104,6 +104,8 @@ class MatchStore(
     val canUndo: Boolean get() = undoStack.isNotEmpty()
     val canRedo: Boolean get() = redoStack.isNotEmpty()
     val isLocked: Boolean get() = s.isMatchOver || s.gameWinner != null || _presentation.value != null
+    fun canUndoCard(type: CardType): Boolean =
+        !isLocked && s.cardEvents.any { it.type == type }
 
     fun isMatchPoint(side: Side): Boolean = s.isMatchPoint(side)
     fun isGamePoint(side: Side): Boolean = s.isGamePoint(side)
@@ -144,7 +146,8 @@ class MatchStore(
             else null
         }
         pushRedo()
-        s = undoStack.removeLast()
+        val cards = s.cardEvents
+        s = undoStack.removeLast().copy(cardEvents = cards)
         _lastEvent.value = ScoreEvent.Undone
         _lastUndoneSide.value = side
         val who = side?.let { s.name(it) } ?: "一"
@@ -159,9 +162,29 @@ class MatchStore(
         // （iOS 那边同样的写法导致点「重做」必闪退，移植时一并避开。）
         undoStack.addLast(s)
         while (undoStack.size > 200) undoStack.removeFirst()
-        s = redoStack.removeLast()
+        val cards = s.cardEvents
+        s = redoStack.removeLast().copy(cardEvents = cards)
         _lastEvent.value = ScoreEvent.Point(s.server)
         _toast.value = ToastMessage("已恢复 1 分", "arrow.uturn.forward")
+        persist()
+    }
+
+    /** 记一张红黄牌。牌不影响比分、发球权或胜负。 */
+    fun addCard(type: CardType, side: Side) {
+        if (isLocked) return
+        s = s.addCard(type, side)
+        _toast.value = null
+        persist()
+    }
+
+    /** 撤销最近一张指定颜色的牌。 */
+    fun undoCard(type: CardType) {
+        if (!canUndoCard(type)) return
+        val result = s.undoCard(type) ?: return
+        val (next, event) = result
+        s = next
+        _lastUndoneSide.value = event.side
+        _toast.value = ToastMessage("已撤销 ${s.name(event.side)}${type.title}", "arrow.uturn.backward")
         persist()
     }
 
@@ -323,6 +346,7 @@ class MatchStore(
                 games = cur.gameScores,
                 winner = winner,
                 durationSeconds = (System.currentTimeMillis() - startedAt) / 1000.0,
+                cardEvents = cur.cardEvents,
             )
         )
     }

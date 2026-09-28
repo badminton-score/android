@@ -5,11 +5,14 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -17,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -32,46 +36,90 @@ fun MatchScreen(store: MatchStore, onExit: () -> Unit) {
     val toast by store.toast.collectAsState()
     var showSettings by remember { mutableStateOf(false) }
     var showLog by remember { mutableStateOf(false) }
+    var cardSignal by remember { mutableStateOf<CardSignal?>(null) }
 
-    Column(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
 
-        // 顶栏
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            CircleIconButton(onClick = onExit, size = 40) {
-                Text("‹", color = Palette.blueBright, fontSize = 22.sp)
+            // 顶栏
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                CircleIconButton(onClick = onExit, size = 40) {
+                    Text("‹", color = Palette.blueBright, fontSize = 22.sp)
+                }
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("第 ${state.currentGame} 局", color = Palette.text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(state.mode.title, color = Palette.textDim, fontSize = 11.sp)
+                }
+                UndoMenu(
+                    store = store,
+                    canUndoScore = store.canUndo && !store.isLocked,
+                    canUndoRed = !store.isLocked && state.cardEvents.any { it.type == CardType.RED },
+                    canUndoYellow = !store.isLocked && state.cardEvents.any { it.type == CardType.YELLOW },
+                )
+                CircleIconButton(onClick = { store.redo() }, enabled = store.canRedo, size = 40) {
+                    Text("↻", color = if (store.canRedo) Palette.blueBright else Color.White.copy(alpha = 0.2f), fontSize = 18.sp)
+                }
+                CircleIconButton(onClick = { showLog = true }, size = 40) {
+                    Text("☰", color = Palette.blueBright, fontSize = 16.sp)
+                }
+                CircleIconButton(onClick = { showSettings = true }, size = 40) {
+                    Text("⚙", color = Palette.blueBright, fontSize = 17.sp)
+                }
             }
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("第 ${state.currentGame} 局", color = Palette.text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Text(state.mode.title, color = Palette.textDim, fontSize = 11.sp)
+
+            // 两个比分面板
+            Side.entries.forEach { side ->
+                val isRed = side == Side.RED
+                ScorePanel(
+                    modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp),
+                    store = store,
+                    state = state,
+                    side = side,
+                    isRed = isRed,
+                    onCard = { type ->
+                        store.addCard(type, side)
+                        cardSignal = CardSignal(side, type)
+                    },
+                )
             }
-            CircleIconButton(onClick = { store.undo() }, enabled = store.canUndo, size = 40) {
-                Text("↺", color = if (store.canUndo) Palette.blueBright else Color.White.copy(alpha = 0.2f), fontSize = 18.sp)
+
+            Spacer(Modifier.height(10.dp))
+        }
+
+        // 撤销提示
+        toast?.let {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+                Box(
+                    Modifier.padding(bottom = 90.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.Black.copy(alpha = 0.75f))
+                        .padding(horizontal = 16.dp, vertical = 9.dp),
+                ) { Text(it.text, color = Color.White, fontSize = 13.sp) }
             }
-            CircleIconButton(onClick = { store.redo() }, enabled = store.canRedo, size = 40) {
-                Text("↻", color = if (store.canRedo) Palette.blueBright else Color.White.copy(alpha = 0.2f), fontSize = 18.sp)
-            }
-            CircleIconButton(onClick = { showLog = true }, size = 40) {
-                Text("☰", color = Palette.blueBright, fontSize = 16.sp)
-            }
-            CircleIconButton(onClick = { showSettings = true }, size = 40) {
-                Text("⚙", color = Palette.blueBright, fontSize = 17.sp)
+            LaunchedEffect(it.token) {
+                kotlinx.coroutines.delay(1400)
+                store.clearToast()
             }
         }
 
-        // 两个比分面板
-        Side.entries.forEach { side ->
-            val isRed = side == Side.RED
-            ScorePanel(
-                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp),
-                store = store, state = state, side = side, isRed = isRed,
+        cardSignal?.let { signal ->
+            CardSignalOverlay(
+                sideName = state.name(signal.side),
+                type = signal.type,
+                onClose = { cardSignal = null },
             )
         }
 
-        Spacer(Modifier.height(10.dp))
+        if (showSettings) {
+            SettingsScreen(store = store, onBack = { showSettings = false })
+        }
+        if (showLog) {
+            RallyLogDialog(state = state, onClose = { showLog = false })
+        }
     }
 
     // 一局结束 / 整场结束
@@ -93,29 +141,6 @@ fun MatchScreen(store: MatchStore, onExit: () -> Unit) {
         )
         null -> {}
     }
-
-    if (showSettings) {
-        SettingsScreen(store = store, onBack = { showSettings = false })
-    }
-    if (showLog) {
-        RallyLogDialog(state = state, onClose = { showLog = false })
-    }
-
-    // 撤销提示
-    toast?.let {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-            Box(
-                Modifier.padding(bottom = 90.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.Black.copy(alpha = 0.75f))
-                    .padding(horizontal = 16.dp, vertical = 9.dp),
-            ) { Text(it.text, color = Color.White, fontSize = 13.sp) }
-        }
-        LaunchedEffect(it.token) {
-            kotlinx.coroutines.delay(1400)
-            store.clearToast()
-        }
-    }
 }
 
 @Composable
@@ -125,6 +150,7 @@ private fun ScorePanel(
     state: MatchState,
     side: Side,
     isRed: Boolean,
+    onCard: (CardType) -> Unit,
 ) {
     val points = state.points(side)
     val serving = state.server == side
@@ -191,11 +217,144 @@ private fun ScorePanel(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("👆 轻点面板 · 加一分", color = Palette.textFaint, fontSize = 11.sp)
                 Spacer(Modifier.weight(1f))
-                // 减分 = 撤回上一次加分
-                CircleIconButton(onClick = { store.removePoint(side) }, enabled = store.canUndo, size = 40) {
-                    Text("−", color = if (store.canUndo) Palette.text else Color.White.copy(alpha = 0.2f), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Column(horizontalAlignment = Alignment.End) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CardButton(
+                            side = side,
+                            type = CardType.RED,
+                            count = state.cardCount(CardType.RED, side),
+                            enabled = !locked,
+                            onClick = { onCard(CardType.RED) },
+                        )
+                        CardButton(
+                            side = side,
+                            type = CardType.YELLOW,
+                            count = state.cardCount(CardType.YELLOW, side),
+                            enabled = !locked,
+                            onClick = { onCard(CardType.YELLOW) },
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    // 减分 = 撤回上一次加分
+                    CircleIconButton(onClick = { store.removePoint(side) }, enabled = store.canUndo && !locked, size = 40) {
+                        Text(
+                            "−",
+                            color = if (store.canUndo && !locked) Palette.text else Color.White.copy(alpha = 0.2f),
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
                 }
             }
+        }
+    }
+}
+
+private data class CardSignal(val side: Side, val type: CardType)
+
+@Composable
+private fun UndoMenu(
+    store: MatchStore,
+    canUndoScore: Boolean,
+    canUndoRed: Boolean,
+    canUndoYellow: Boolean,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val enabled = canUndoScore || canUndoRed || canUndoYellow
+
+    Box {
+        CircleIconButton(onClick = { expanded = true }, enabled = enabled, size = 40) {
+            Text(
+                "↺",
+                color = if (enabled) Palette.blueBright else Color.White.copy(alpha = 0.2f),
+                fontSize = 18.sp,
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("撤销分数") },
+                enabled = canUndoScore,
+                onClick = {
+                    expanded = false
+                    store.undo()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("撤销红牌") },
+                enabled = canUndoRed,
+                onClick = {
+                    expanded = false
+                    store.undoCard(CardType.RED)
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("撤销黄牌") },
+                enabled = canUndoYellow,
+                onClick = {
+                    expanded = false
+                    store.undoCard(CardType.YELLOW)
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun CardSignalOverlay(sideName: String, type: CardType, onClose: () -> Unit) {
+    val color = Palette.card(type)
+    val foreground = if (type == CardType.YELLOW) Color.Black.copy(alpha = 0.86f) else Color.White
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(color)
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() },
+            ) {},
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(Color.White.copy(alpha = if (type == CardType.YELLOW) 0.30f else 0.18f), Color.Transparent),
+                        radius = 900f,
+                    )
+                ),
+        )
+
+        Column(
+            Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.systemBars)
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Box(
+                    Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(foreground.copy(alpha = 0.12f))
+                        .border(1.dp, foreground.copy(alpha = 0.24f), RoundedCornerShape(999.dp))
+                        .clickable(onClick = onClose),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("×", color = foreground, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Spacer(Modifier.weight(1f))
+            Column(
+                Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("▯", color = foreground, fontSize = 84.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(10.dp))
+                Text(sideName, color = foreground, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                Text(type.title, color = foreground, fontSize = 52.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.weight(1f))
         }
     }
 }
@@ -204,7 +363,16 @@ private fun ScorePanel(
 private fun RallyLogDialog(state: MatchState, onClose: () -> Unit) {
     AlertDialog(
         onDismissRequest = onClose,
-        title = { Text("逐分记录", fontWeight = FontWeight.Bold) },
+        title = {
+            Column {
+                Text("逐分记录", fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    CardCountTag(CardType.RED, state.cardCount(CardType.RED, Side.RED) + state.cardCount(CardType.RED, Side.BLUE))
+                    CardCountTag(CardType.YELLOW, state.cardCount(CardType.YELLOW, Side.RED) + state.cardCount(CardType.YELLOW, Side.BLUE))
+                }
+            }
+        },
         text = {
             if (state.log.isEmpty()) {
                 Text("还没有得分")

@@ -6,6 +6,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CropPortrait
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -16,6 +19,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.badminton.score.data.CardType
+import com.badminton.score.data.Side
 import com.badminton.score.ui.theme.Palette
 
 /** 通用的玻璃卡片。 */
@@ -108,4 +113,64 @@ fun CircleIconButton(
             .clickable(enabled = enabled) { onClick() },
         contentAlignment = Alignment.Center,
     ) { content() }
+}
+
+/** 计分面板里的出牌按钮，按钮上显示这一方累计张数。 */
+@Composable
+fun CardButton(
+    side: Side,
+    type: CardType,
+    count: Int,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val color = Palette.card(type)
+    Row(
+        Modifier
+            .width(52.dp)
+            .height(34.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(color.copy(alpha = if (enabled) 0.14f else 0.05f))
+            .border(1.dp, color.copy(alpha = if (enabled) 0.48f else 0.1f), RoundedCornerShape(999.dp))
+            .clickable(enabled = enabled) { onClick() },
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Filled.CropPortrait,
+            contentDescription = "${side.defaultName}${type.title}，当前 $count 张",
+            tint = color.copy(alpha = if (enabled) 1f else 0.25f),
+            modifier = Modifier.size(14.dp),
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            "$count",
+            color = color.copy(alpha = if (enabled) 1f else 0.25f),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+/** 紧凑的红黄牌次数标签，记录页和局中记录共用。 */
+@Composable
+fun CardCountTag(type: CardType, count: Int) {
+    val color = Palette.card(type)
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(color.copy(alpha = 0.12f))
+            .border(0.8.dp, color.copy(alpha = 0.25f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 7.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Filled.CropPortrait,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(10.dp),
+        )
+        Spacer(Modifier.width(3.dp))
+        Text("${type.title} $count", color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+    }
 }

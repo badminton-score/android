@@ -193,6 +193,30 @@ data class MatchLogEntry(
     val text: String get() = "${game}局  $redPoints : $bluePoints"
 }
 
+// MARK: - 红黄牌
+
+@Serializable
+enum class CardType {
+    YELLOW, RED;
+
+    val title: String
+        get() = when (this) {
+            YELLOW -> "黄牌"
+            RED -> "红牌"
+        }
+}
+
+/** 一次出牌记录。牌不改变比分，只用于计数与撤销。 */
+@Serializable
+data class CardEvent(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val side: Side,
+    val type: CardType,
+    val game: Int,
+    val redPoints: Int,
+    val bluePoints: Int,
+)
+
 // MARK: - 一局结束后的比分
 
 @Serializable
@@ -222,6 +246,8 @@ data class MatchState(
     val matchWinner: Side? = null,
     val gameScores: List<GameScore> = emptyList(),
     val log: List<MatchLogEntry> = emptyList(),
+    /** 本场出牌记录。旧存档没有该字段时默认为空。 */
+    val cardEvents: List<CardEvent> = emptyList(),
 
     /** 单打还是双打。 */
     val format: MatchFormat = MatchFormat.SINGLES,
@@ -245,6 +271,29 @@ data class MatchState(
     fun games(side: Side): Int = if (side == Side.RED) redGames else blueGames
     fun points(side: Side): Int = if (side == Side.RED) redPoints else bluePoints
     val serveBox: String get() = if (points(server) % 2 == 0) "右区" else "左区"
+
+    /** 某方、某种颜色的牌有几张。 */
+    fun cardCount(type: CardType, side: Side): Int =
+        cardEvents.count { it.type == type && it.side == side }
+
+    /** 记一张牌。 */
+    fun addCard(type: CardType, side: Side): MatchState = copy(
+        cardEvents = cardEvents + CardEvent(
+            side = side,
+            type = type,
+            game = currentGame,
+            redPoints = redPoints,
+            bluePoints = bluePoints,
+        )
+    )
+
+    /** 撤销最近一张指定颜色的牌，返回被撤销的事件。 */
+    fun undoCard(type: CardType): Pair<MatchState, CardEvent>? {
+        val index = cardEvents.indexOfLast { it.type == type }
+        if (index < 0) return null
+        val event = cardEvents[index]
+        return copy(cardEvents = cardEvents.filterIndexed { i, _ -> i != index }) to event
+    }
 
     // MARK: 队员
 

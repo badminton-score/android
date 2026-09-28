@@ -178,7 +178,7 @@ fun HomeScreen(
 
 /** 上一场是否还有没打完的比分。 */
 private val MatchState.hasUnfinished: Boolean
-    get() = (redPoints > 0 || bluePoints > 0 || gameScores.isNotEmpty()) && !isMatchOver
+    get() = (redPoints > 0 || bluePoints > 0 || gameScores.isNotEmpty() || cardEvents.isNotEmpty()) && !isMatchOver
 
 @Composable
 private fun Hero() {
@@ -194,7 +194,7 @@ private fun Hero() {
             contentAlignment = Alignment.Center,
         ) { Text("🏸", fontSize = 52.sp) }
         Spacer(Modifier.height(12.dp))
-        Text("红蓝对抗 · 规则内置 · 一指计分", color = Palette.textDim, fontSize = 13.sp)
+        Text("红蓝对抗 · 红黄牌 · 一指计分", color = Palette.textDim, fontSize = 13.sp)
     }
 }
 

@@ -13,8 +13,8 @@ android {
         applicationId = "com.badminton.score"
         minSdk = 26
         targetSdk = 35
-        versionCode = 20200
-        versionName = "2.2"
+        versionCode = 20300
+        versionName = "2.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

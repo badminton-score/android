@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.sp
 import com.badminton.score.data.MatchHistoryStore
 import com.badminton.score.data.MatchRecord
 import com.badminton.score.data.Side
+import com.badminton.score.data.CardType
+import com.badminton.score.ui.CardCountTag
 import com.badminton.score.ui.CircleIconButton
 import com.badminton.score.ui.theme.Palette
 import java.text.SimpleDateFormat
@@ -196,9 +198,25 @@ private fun RecordCard(record: MatchRecord, fmt: SimpleDateFormat, modifier: Mod
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             // 各方显示自己赢的局数（之前两边都传 gamesLine，都显示「2-1」）
-            SideText(record.redName, "${record.gamesOf(Side.RED)}", record.winner == Side.RED, Palette.redBright, Modifier.weight(1f))
+            SideText(
+                record.redName,
+                "${record.gamesOf(Side.RED)}",
+                record.winner == Side.RED,
+                Palette.redBright,
+                record.cardCount(CardType.RED, Side.RED),
+                record.cardCount(CardType.YELLOW, Side.RED),
+                Modifier.weight(1f),
+            )
             Text("vs", color = Palette.textFaint, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp))
-            SideText(record.blueName, "${record.gamesOf(Side.BLUE)}", record.winner == Side.BLUE, Palette.blueBright, Modifier.weight(1f))
+            SideText(
+                record.blueName,
+                "${record.gamesOf(Side.BLUE)}",
+                record.winner == Side.BLUE,
+                Palette.blueBright,
+                record.cardCount(CardType.RED, Side.BLUE),
+                record.cardCount(CardType.YELLOW, Side.BLUE),
+                Modifier.weight(1f),
+            )
         }
 
         if (record.scoreLine.isNotEmpty()) {
@@ -209,20 +227,35 @@ private fun RecordCard(record: MatchRecord, fmt: SimpleDateFormat, modifier: Mod
 }
 
 @Composable
-private fun SideText(name: String, score: String, winner: Boolean, tint: Color, modifier: Modifier = Modifier) {
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        if (winner) {
-            Text("👑 ", fontSize = 10.sp)
+private fun SideText(
+    name: String,
+    score: String,
+    winner: Boolean,
+    tint: Color,
+    redCards: Int,
+    yellowCards: Int,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (winner) {
+                Text("👑 ", fontSize = 10.sp)
+            }
+            Text(
+                name,
+                color = if (winner) Palette.text else Palette.textDim,
+                fontSize = 14.sp,
+                fontWeight = if (winner) FontWeight.Bold else FontWeight.Normal,
+                maxLines = 1,
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(score, color = if (winner) tint else Palette.textFaint, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
-        Text(
-            name,
-            color = if (winner) Palette.text else Palette.textDim,
-            fontSize = 14.sp,
-            fontWeight = if (winner) FontWeight.Bold else FontWeight.Normal,
-            maxLines = 1,
-        )
-        Spacer(Modifier.width(6.dp))
-        Text(score, color = if (winner) tint else Palette.textFaint, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            CardCountTag(CardType.RED, redCards)
+            CardCountTag(CardType.YELLOW, yellowCards)
+        }
     }
 }
 
