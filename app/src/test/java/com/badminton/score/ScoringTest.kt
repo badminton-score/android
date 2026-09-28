@@ -65,6 +65,14 @@ class GameWinnerTest {
         assertEquals(Side.RED, r.winner(12, 10))
         assertEquals(Side.RED, r.winner(15, 14))
     }
+
+    @Test
+    fun `双方都超过缩小的封顶时，只看领先方且平局不判胜`() {
+        val r = BadmintonRules.custom(points = 5, capBonus = 1, maxGames = 1)
+        assertNull(r.winner(6, 6))
+        assertEquals(Side.RED, r.winner(7, 6))
+        assertEquals(Side.BLUE, r.winner(6, 7))
+    }
 }
 
 // ───────────────────────── 局点与赛点 ─────────────────────────
@@ -110,6 +118,18 @@ class PointSituationTest {
         val s = MatchState(mode = ScoringMode.BWF21).copy(redPoints = 20, bluePoints = 5)
         assertFalse(s.isMatchPoint(Side.RED))
     }
+
+    @Test
+    fun `发球得分制只有当前发球方可能是局点`() {
+        var s = MatchState(mode = ScoringMode.TRADITIONAL15, server = Side.RED)
+            .copy(redPoints = 14, bluePoints = 13)
+        assertTrue(s.isGamePoint(Side.RED))
+        assertFalse(s.isGamePoint(Side.BLUE))
+
+        s = s.copy(server = Side.BLUE, redPoints = 13, bluePoints = 14)
+        assertTrue(s.isGamePoint(Side.BLUE))
+        assertFalse(s.isGamePoint(Side.RED))
+    }
 }
 
 // ───────────────────────── 得分与发球权 ─────────────────────────
@@ -140,18 +160,35 @@ class ScoringFlowTest {
     }
 
     @Test
-    fun `旧制发球得分制：接发球方得分不换发球`() {
+    fun `旧制发球得分制：接发球方赢球只夺回发球权`() {
         val state = MatchState(mode = ScoringMode.TRADITIONAL15, server = Side.RED)
             .copy(redPoints = 3, bluePoints = 3)
-        val (next, _) = ScoreEngine.applyPoint(Side.BLUE, state)
-        assertEquals(4, next.bluePoints)
+        val (next, event) = ScoreEngine.applyPoint(Side.BLUE, state)
+        assertEquals(3, next.bluePoints)
         assertEquals(3, next.redPoints)
-        assertEquals(Side.RED, next.server)
+        assertEquals(Side.BLUE, next.server)
+        assertTrue(next.log.isEmpty())
+        assertEquals(ScoreEvent.ServeChange(Side.BLUE), event)
 
         // 发球方得分则继续保持发球权
-        val served = ScoreEngine.applyPoint(Side.RED, next).first
-        assertEquals(4, served.redPoints)
-        assertEquals(Side.RED, served.server)
+        val served = ScoreEngine.applyPoint(Side.BLUE, next).first
+        assertEquals(4, served.bluePoints)
+        assertEquals(Side.BLUE, served.server)
+    }
+
+    @Test
+    fun `旧制双打接发球方夺回发球权时换人发`() {
+        val state = MatchState(mode = ScoringMode.TRADITIONAL15).copy(
+            format = MatchFormat.DOUBLES,
+            server = Side.RED,
+            redServeIndex = 0,
+            blueServeIndex = 0,
+        )
+
+        val next = ScoreEngine.applyPoint(Side.BLUE, state).first
+        assertEquals(0, next.bluePoints)
+        assertEquals(Side.BLUE, next.server)
+        assertEquals(1, next.blueServeIndex)
     }
 
     @Test
@@ -317,6 +354,53 @@ class CustomRulesTest {
         assertEquals(Side.RED, state.gameWinner)
         assertEquals(1, state.redGames)
         assertFalse(state.isMatchOver)   // 三局两胜，才赢一局
+    }
+
+    @Test
+    fun `自定义规则改小后先结算当前局，再判断整场`() {
+        val original = BadmintonRules.custom(11, null, 3)
+        val state = MatchState(
+            mode = ScoringMode.CUSTOM,
+            redPoints = 11,
+            bluePoints = 8,
+            customRules = original,
+        )
+        val store = MatchStore(state)
+
+        store.setCustomRules(points = 5, capBonus = null, maxGames = 3)
+
+        assertEquals(listOf(GameScore(1, 11, 8)), store.state.value.gameScores)
+        assertEquals(1, store.state.value.redGames)
+        assertFalse(store.state.value.isMatchOver)
+        val presentation = store.presentation.value
+        assertTrue(presentation is MatchPresentation.NextGame)
+        val nextGame = presentation as MatchPresentation.NextGame
+        assertEquals(Side.RED, nextGame.side)
+        assertEquals(1, nextGame.game)
+
+        store.startNextGame()
+        assertEquals(2, store.state.value.currentGame)
+        assertEquals(1, store.state.value.redGames)
+        assertEquals(1, store.state.value.gameScores.size)
+    }
+
+    @Test
+    fun `自定义规则改小后直接结束整场时不会漏记局分`() {
+        val original = BadmintonRules.custom(11, null, 3)
+        val state = MatchState(
+            mode = ScoringMode.CUSTOM,
+            redPoints = 11,
+            bluePoints = 8,
+            customRules = original,
+        )
+        val store = MatchStore(state)
+
+        store.setCustomRules(points = 5, capBonus = null, maxGames = 1)
+
+        assertEquals(listOf(GameScore(1, 11, 8)), store.state.value.gameScores)
+        assertEquals(1, store.state.value.redGames)
+        assertTrue(store.state.value.isMatchOver)
+        assertEquals(Side.RED, store.state.value.matchWinner)
     }
 
     @Test
@@ -623,6 +707,31 @@ class MatchSessionTest {
         assertEquals("甲", store.state.value.redName)
         assertEquals("乙", store.state.value.blueName)
         assertEquals(ScoringMode.BWF21, store.state.value.mode)
+    }
+
+    @Test
+    fun `新比赛保留首页选定的先发球方`() {
+        val store = MatchStore(MatchState(mode = ScoringMode.BWF21))
+        store.rematch(Side.BLUE)
+        assertEquals(Side.BLUE, store.state.value.server)
+        assertFalse(store.state.value.startedByRed)
+    }
+
+    @Test
+    fun `切换赛制不会重置首页选定的先发球方`() {
+        val store = MatchStore(MatchState(mode = ScoringMode.BWF21, server = Side.BLUE, startedByRed = false))
+        store.changeMode(ScoringMode.TRADITIONAL15)
+        assertEquals(Side.BLUE, store.state.value.server)
+        assertFalse(store.state.value.startedByRed)
+    }
+
+    @Test
+    fun `减分提示以实际被撤销的一分为准`() {
+        val store = MatchStore(MatchState(mode = ScoringMode.BWF21))
+        store.addPoint(Side.RED)
+        store.removePoint(Side.BLUE)
+        assertEquals(0, store.state.value.redPoints)
+        assertEquals(Side.RED, store.lastUndoneSide.value)
     }
 
     @Test

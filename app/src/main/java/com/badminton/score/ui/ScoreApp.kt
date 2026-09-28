@@ -39,9 +39,15 @@ fun ScoreApp() {
         screen == Screen.Settings -> SettingsScreen(
             store = store,
             onBack = { screen = Screen.Home },
+            onExit = { screen = Screen.Home },
+            onModeChanged = { prefs.selectedMode = it },
         )
 
-        inMatch -> MatchScreen(store = store, onExit = { inMatch = false })
+        inMatch -> MatchScreen(
+            store = store,
+            onExit = { inMatch = false },
+            onModeChanged = { prefs.selectedMode = it },
+        )
 
         else -> HomeScreen(
             store = store,

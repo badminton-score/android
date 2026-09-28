@@ -9,6 +9,9 @@ sealed interface ScoreEvent {
     /** 普通得分。 */
     data class Point(val side: Side) : ScoreEvent
 
+    /** 发球得分制下，接发球方赢球只夺回发球权，不加分。 */
+    data class ServeChange(val side: Side) : ScoreEvent
+
     /** 本局结束。 */
     data class GameWon(val side: Side, val red: Int, val blue: Int, val game: Int) : ScoreEvent
 
@@ -32,6 +35,19 @@ object ScoreEngine {
     fun applyPoint(side: Side, state: MatchState): Pair<MatchState, ScoreEvent> {
         if (state.isMatchOver || state.gameWinner != null) return state to ScoreEvent.None
 
+        val wasServing = state.server == side
+
+        // 旧制发球得分制：接发球方赢球只交换发球权，不计分。
+        if (!state.rules.rallyPoint && !wasServing) {
+            val next = if (state.format == MatchFormat.DOUBLES) {
+                if (side == Side.RED) state.copy(redServeIndex = 1 - state.redServeIndex, server = side)
+                else state.copy(blueServeIndex = 1 - state.blueServeIndex, server = side)
+            } else {
+                state.copy(server = side)
+            }
+            return next to ScoreEvent.ServeChange(side)
+        }
+
         var next = state.copy(
             redPoints = state.redPoints + if (side == Side.RED) 1 else 0,
             bluePoints = state.bluePoints + if (side == Side.BLUE) 1 else 0,
@@ -48,7 +64,6 @@ object ScoreEngine {
 
         // 发球权。
         // 每球得分制：得分方获得发球权；旧制发球得分制：发球方得分才换发球。
-        val wasServing = next.server == side
         if (next.rules.rallyPoint || wasServing) {
             // 双打：接发球方夺回发球权时，换这对里的另一个人发球。
             // （发球方自己连续得分时，还是同一个人发，只是左右发球区轮换。）

@@ -1,5 +1,6 @@
 package com.badminton.score.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -30,7 +31,11 @@ import com.badminton.score.ui.*
 import com.badminton.score.ui.theme.Palette
 
 @Composable
-fun MatchScreen(store: MatchStore, onExit: () -> Unit) {
+fun MatchScreen(
+    store: MatchStore,
+    onExit: () -> Unit,
+    onModeChanged: (ScoringMode) -> Unit,
+) {
     val state by store.state.collectAsState()
     val presentation by store.presentation.collectAsState()
     val toast by store.toast.collectAsState()
@@ -38,8 +43,11 @@ fun MatchScreen(store: MatchStore, onExit: () -> Unit) {
     var showLog by remember { mutableStateOf(false) }
     var cardSignal by remember { mutableStateOf<CardSignal?>(null) }
 
+    BackHandler(enabled = cardSignal != null) { cardSignal = null }
+    BackHandler(enabled = cardSignal == null && showSettings) { showSettings = false }
+
     Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().safeDrawingPadding()) {
 
             // 顶栏
             Row(
@@ -115,7 +123,15 @@ fun MatchScreen(store: MatchStore, onExit: () -> Unit) {
         }
 
         if (showSettings) {
-            SettingsScreen(store = store, onBack = { showSettings = false })
+            SettingsScreen(
+                store = store,
+                onBack = { showSettings = false },
+                onExit = {
+                    showSettings = false
+                    onExit()
+                },
+                onModeChanged = onModeChanged,
+            )
         }
         if (showLog) {
             RallyLogDialog(state = state, onClose = { showLog = false })
@@ -215,7 +231,12 @@ private fun ScorePanel(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("👆 轻点面板 · 加一分", color = Palette.textFaint, fontSize = 11.sp)
+                Text(
+                    if (state.rules.rallyPoint) "👆 轻点面板 · 加一分"
+                    else "👆 轻点面板 · 得分 / 夺发球权",
+                    color = Palette.textFaint,
+                    fontSize = 11.sp,
+                )
                 Spacer(Modifier.weight(1f))
                 Column(horizontalAlignment = Alignment.End) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -53,7 +53,7 @@ echo "sdk.dir=/path/to/android-sdk" > local.properties
 
 ### 测试
 
-**56 项单元测试**，和 iOS 版一一对应，覆盖：
+**64 项单元测试**，和 iOS 版一一对应，覆盖：
 
 - 单局胜负判定（含 20 平、29 平、封顶）
 - 局点与赛点

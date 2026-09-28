@@ -1,5 +1,6 @@
 package com.badminton.score.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,9 +38,10 @@ fun RecordsScreen(onClose: () -> Unit) {
 
     val fmt = remember { SimpleDateFormat("M月d日 HH:mm", Locale.CHINA) }
     val allSelected = records.isNotEmpty() && selected.size == records.size
+    BackHandler(onBack = onClose)
 
     Box(Modifier.fillMaxSize().background(Palette.bg)) {
-        Column(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().safeDrawingPadding()) {
             // 顶栏
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
@@ -166,7 +168,8 @@ private fun RecordCard(record: MatchRecord, fmt: SimpleDateFormat, modifier: Mod
     Column(
         modifier
             .clip(RoundedCornerShape(18.dp))
-            .background(Palette.card.copy(alpha = 0.7f))
+            // 必须不透明：这层卡片盖在滑动删除背景上，半透明会把红色「删除」透出来。
+            .background(Palette.card)
             .border(
                 1.dp,
                 (if (isRedWin) Palette.red else Palette.blue).copy(alpha = 0.28f),

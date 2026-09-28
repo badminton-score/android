@@ -22,13 +22,19 @@ import com.badminton.score.ui.*
 import com.badminton.score.ui.theme.Palette
 
 @Composable
-fun SettingsScreen(store: MatchStore, onBack: () -> Unit) {
+fun SettingsScreen(
+    store: MatchStore,
+    onBack: () -> Unit,
+    onExit: () -> Unit = onBack,
+    onModeChanged: (ScoringMode) -> Unit = {},
+) {
     val state by store.state.collectAsState()
     var confirmReset by remember { mutableStateOf(false) }
 
     Column(
         Modifier
             .fillMaxSize()
+            .safeDrawingPadding()
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -50,7 +56,10 @@ fun SettingsScreen(store: MatchStore, onBack: () -> Unit) {
                             .clip(RoundedCornerShape(16.dp))
                             .background(if (m == state.mode) Palette.blue.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.05f))
                             .border(1.dp, if (m == state.mode) Palette.blue.copy(alpha = 0.5f) else Palette.lineSoft, RoundedCornerShape(16.dp))
-                            .clickable(enabled = m != state.mode) { store.changeMode(m) }
+                            .clickable(enabled = m != state.mode) {
+                                store.changeMode(m)
+                                onModeChanged(m)
+                            }
                             .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -62,6 +71,43 @@ fun SettingsScreen(store: MatchStore, onBack: () -> Unit) {
                     }
                 }
                 if (state.mode == ScoringMode.CUSTOM) CustomRulesPanel(store)
+            }
+        }
+
+        Column {
+            SectionTitle("上场人数")
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                MatchFormat.entries.forEach { format ->
+                    val selected = state.format == format
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(56.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(
+                                if (selected) sideGradient(false)
+                                else Brush.horizontalGradient(
+                                    listOf(Color.White.copy(alpha = 0.06f), Color.White.copy(alpha = 0.06f)),
+                                ),
+                            )
+                            .clickable(enabled = !selected) { store.setFormat(format) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                format.title,
+                                color = if (selected) Color.White else Palette.textDim,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                format.subtitle,
+                                color = (if (selected) Color.White else Palette.textDim).copy(alpha = 0.7f),
+                                fontSize = 11.sp,
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -128,7 +174,12 @@ fun SettingsScreen(store: MatchStore, onBack: () -> Unit) {
                 }
             },
             dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { store.clearPersisted(); confirmReset = false; onBack() }) {
+                androidx.compose.material3.TextButton(onClick = {
+                    store.rematch()
+                    store.clearPersisted()
+                    confirmReset = false
+                    onExit()
+                }) {
                     Text("返回首页", color = Palette.destructive)
                 }
             },

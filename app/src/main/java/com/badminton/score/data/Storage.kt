@@ -9,8 +9,14 @@ private class Prefs(context: Context) {
 
 class PrefsMatchStorage(context: Context) : MatchStorage {
     private val sp = Prefs(context).sp
-    override fun save(state: MatchState, undo: List<MatchState>, redo: List<MatchState>) {
-        sp.edit().putString(KEY, MatchStore.encodeArchive(state, undo, redo)).apply()
+    override fun save(
+        state: MatchState,
+        undo: List<MatchState>,
+        redo: List<MatchState>,
+        startedAt: Long,
+        didRecord: Boolean,
+    ) {
+        sp.edit().putString(KEY, MatchStore.encodeArchive(state, undo, redo, startedAt, didRecord)).apply()
     }
     override fun load(): MatchStore.Archive? =
         sp.getString(KEY, null)?.let { MatchStore.decodeArchive(it) }

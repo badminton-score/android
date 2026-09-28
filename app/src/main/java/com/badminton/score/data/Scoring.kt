@@ -62,7 +62,7 @@ enum class ScoringMode {
         get() = when (this) {
             BWF21 -> "正式比赛 · 三局两胜"
             CLASSIC21 -> "无封顶 · 必须净胜 2 分"
-            TRADITIONAL15 -> "旧制 · 两局三胜"
+            TRADITIONAL15 -> "旧制 · 三局两胜"
             TRADITIONAL11 -> "旧制 · 三局两胜"
             SINGLE21 -> "快速对战 · 一局定胜负"
             CUSTOM -> "自己定分数与局数"
@@ -132,6 +132,7 @@ data class BadmintonRules(
      * - 先到 absoluteWin 直接赢
      */
     fun winner(red: Int, blue: Int): Side? {
+        if (red == blue) return null
         val mine = maxOf(red, blue)
         val theirs = minOf(red, blue)
         if (mine < pointsToWin) return null
@@ -345,6 +346,7 @@ data class MatchState(
     /** 某方是否处于「只差一球就赢下这一局」。 */
     fun isGamePoint(side: Side): Boolean {
         if (gameWinner != null || isMatchOver) return false
+        if (!rules.rallyPoint && server != side) return false
         val probe = copy(
             redPoints = redPoints + if (side == Side.RED) 1 else 0,
             bluePoints = bluePoints + if (side == Side.BLUE) 1 else 0,
@@ -355,6 +357,7 @@ data class MatchState(
     /** 某方是否处于「只差一球就赢下整场」。 */
     fun isMatchPoint(side: Side): Boolean {
         if (gameWinner != null || isMatchOver) return false
+        if (!rules.rallyPoint && server != side) return false
         val probe = copy(
             redPoints = redPoints + if (side == Side.RED) 1 else 0,
             bluePoints = bluePoints + if (side == Side.BLUE) 1 else 0,

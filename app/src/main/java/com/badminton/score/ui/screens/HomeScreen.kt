@@ -39,6 +39,7 @@ fun HomeScreen(
     Column(
         Modifier
             .fillMaxSize()
+            .safeDrawingPadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 22.dp)
             .padding(top = 24.dp, bottom = 40.dp),
@@ -148,8 +149,9 @@ fun HomeScreen(
         PrimaryButton("▶  开始比赛") {
             // 「开始比赛」永远从头开始，不然同一个赛制没法连着用两次
             // （之前不重置，而 changeMode(同模式) 是空操作，比分就留着了）
+            val firstServer = state.server
             store.changeMode(mode)
-            store.rematch()
+            store.rematch(firstServer)
             onStart()
         }
 

@@ -24,13 +24,25 @@ data class ToastMessage(val text: String, val symbol: String, val token: Long = 
  * 不用跑 Robolectric 也能测会话逻辑。
  */
 interface MatchStorage {
-    fun save(state: MatchState, undo: List<MatchState>, redo: List<MatchState>)
+    fun save(
+        state: MatchState,
+        undo: List<MatchState>,
+        redo: List<MatchState>,
+        startedAt: Long,
+        didRecord: Boolean,
+    )
     fun load(): MatchStore.Archive?
     fun clear()
 }
 
 @Serializable
-data class ArchivedMatch(val state: MatchState, val undo: List<MatchState>, val redo: List<MatchState>)
+data class ArchivedMatch(
+    val state: MatchState,
+    val undo: List<MatchState>,
+    val redo: List<MatchState>,
+    val startedAt: Long? = null,
+    val didRecord: Boolean? = null,
+)
 
 /**
  * 一次比赛的完整会话状态：比分、撤销/重做栈、提示与弹窗，以及本地持久化。
@@ -92,11 +104,14 @@ class MatchStore(
             _state.value = archive.state
             undoStack.clear(); undoStack.addAll(archive.undo)
             redoStack.clear(); redoStack.addAll(archive.redo)
+            startedAt = archive.startedAt ?: System.currentTimeMillis()
+            didRecord = archive.didRecord ?: archive.state.isMatchOver
+            settle()
         }
     }
 
     private fun persist() {
-        storage?.save(s, undoStack.toList(), redoStack.toList())
+        storage?.save(s, undoStack.toList(), redoStack.toList(), startedAt, didRecord)
     }
 
     // MARK: - 派生信息
@@ -114,8 +129,17 @@ class MatchStore(
 
     fun addPoint(side: Side) {
         if (isLocked) return
-        pushUndo()
+        val previous = s
         val (next, event) = ScoreEngine.applyPoint(side, s)
+        if (event is ScoreEvent.ServeChange) {
+            s = next
+            _lastEvent.value = event
+            _lastUndoneSide.value = null
+            _toast.value = null
+            persist()
+            return
+        }
+        pushUndo(previous)
         s = next
         _lastEvent.value = event
         _lastUndoneSide.value = null
@@ -140,10 +164,10 @@ class MatchStore(
     fun undo(preferredSide: Side? = null) {
         if (!canUndo || _presentation.value != null) return
         val previous = undoStack.last()
-        val side = preferredSide ?: run {
+        val side = run {
             if (previous.redPoints != s.redPoints) Side.RED
             else if (previous.bluePoints != s.bluePoints) Side.BLUE
-            else null
+            else preferredSide
         }
         pushRedo()
         val cards = s.cardEvents
@@ -188,8 +212,8 @@ class MatchStore(
         persist()
     }
 
-    private fun pushUndo() {
-        undoStack.addLast(s)
+    private fun pushUndo(snapshot: MatchState = s) {
+        undoStack.addLast(snapshot)
         while (undoStack.size > 200) undoStack.removeFirst()
         redoStack.clear()
     }
@@ -211,10 +235,10 @@ class MatchStore(
     }
 
     /** 整场重来：保持队名与赛制，清零比分。 */
-    fun rematch() {
+    fun rematch(firstServer: Side = Side.RED) {
         startedAt = System.currentTimeMillis()
         didRecord = false
-        val fresh = MatchState(mode = s.mode)
+        val fresh = MatchState(mode = s.mode, server = firstServer, startedByRed = firstServer == Side.RED)
             .copy(
                 redName = s.players(Side.RED).first(),
                 blueName = s.players(Side.BLUE).first(),
@@ -242,7 +266,7 @@ class MatchStore(
         if (mode == s.mode) return
         startedAt = System.currentTimeMillis()
         didRecord = false
-        s = MatchState(mode = mode)
+        s = MatchState(mode = mode, server = s.server, startedByRed = s.server == Side.RED)
             .copy(
                 redName = s.players(Side.RED).first(),
                 blueName = s.players(Side.BLUE).first(),
@@ -289,13 +313,26 @@ class MatchStore(
             recordIfNeeded()
             return
         }
-        val winner = cur.gameWinner ?: run { _presentation.value = null; return }
-        if (cur.games(winner) >= cur.rules.gamesToWin) {
-            s = cur.copy(isMatchOver = true, matchWinner = winner)
+
+        val finalizedGame = cur.gameScores.lastOrNull { it.game == cur.currentGame }
+        val winner = finalizedGame?.winner ?: cur.gameWinner
+        if (winner == null) {
+            _presentation.value = null
+            return
+        }
+        if (finalizedGame == null) {
+            s = cur.copy(
+                redGames = cur.redGames + if (winner == Side.RED) 1 else 0,
+                blueGames = cur.blueGames + if (winner == Side.BLUE) 1 else 0,
+                gameScores = cur.gameScores + GameScore(cur.currentGame, cur.redPoints, cur.bluePoints),
+            )
+        }
+        if (s.games(winner) >= s.rules.gamesToWin) {
+            s = s.copy(isMatchOver = true, matchWinner = winner)
             _presentation.value = MatchPresentation.MatchResult(winner)
             recordIfNeeded()
-        } else if (cur.gameScores.none { it.game == cur.currentGame }) {
-            _presentation.value = MatchPresentation.NextGame(winner, cur.redPoints, cur.bluePoints, cur.currentGame)
+        } else {
+            _presentation.value = MatchPresentation.NextGame(winner, s.redPoints, s.bluePoints, s.currentGame)
         }
     }
 
@@ -354,15 +391,26 @@ class MatchStore(
     companion object {
         private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
-        fun encodeArchive(state: MatchState, undo: List<MatchState>, redo: List<MatchState>): String =
-            json.encodeToString(ArchivedMatch(state, undo, redo))
+        fun encodeArchive(
+            state: MatchState,
+            undo: List<MatchState>,
+            redo: List<MatchState>,
+            startedAt: Long,
+            didRecord: Boolean,
+        ): String = json.encodeToString(ArchivedMatch(state, undo, redo, startedAt, didRecord))
 
         fun decodeArchive(text: String): Archive? = runCatching {
             val a = json.decodeFromString<ArchivedMatch>(text)
-            Archive(a.state, a.undo, a.redo)
+            Archive(a.state, a.undo, a.redo, a.startedAt, a.didRecord)
         }.getOrNull()
     }
 
     /** 存档的内存表示。 */
-    data class Archive(val state: MatchState, val undo: List<MatchState>, val redo: List<MatchState>)
+    data class Archive(
+        val state: MatchState,
+        val undo: List<MatchState>,
+        val redo: List<MatchState>,
+        val startedAt: Long? = null,
+        val didRecord: Boolean? = null,
+    )
 }
